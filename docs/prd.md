@@ -45,6 +45,7 @@ Frozen copies, already downloaded and listed in a manifest. Nothing is crawled.
 - The same questions run against the demo app. Each score for the new system is reported next to the demo app's score.
 - The metric for now is hit rate on the right source.
 - The result is reported either way. If the new system doesn't beat the demo app, that is a finding.
+- Pass mark for the first version: the right source for at least 8 of the 10 answerable questions, and "not found" for the eleventh.
 
 ## Constraints
 
