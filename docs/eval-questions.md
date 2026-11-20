@@ -1,7 +1,7 @@
 # Evaluation questions
 
 Eleven hand-written questions for the first version. Ten have a known source, labelled by file and section. Question 11 has no answer in the sources, on purpose.
-All paths are relative to the frozen sources folder (`prep/sources/`).
+All paths are relative to the frozen sources folder (`sources/`).
 
 | #   | Question                                                                                                         | Source (file and section or page)                                                                                                                                                                    | Expected answer                                                                                                                                                                            | Difficulty |
 | --- | ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- |
