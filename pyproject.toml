@@ -1,0 +1,22 @@
+[project]
+name = "build-production-rag"
+version = "0.1.0"
+description = "Citation-grounded RAG system built from scratch with requirements, ADRs, evaluation benchmarks, and thin testable Python code."
+readme = "README.md"
+authors = [
+    { name = "Asheesh Ranjan Srivastava", email = "asheeshsrivastava9@gmail.com" }
+]
+requires-python = ">=3.14"
+dependencies = []
+
+[project.scripts]
+build-production-rag = "build_production_rag:main"
+
+[build-system]
+requires = ["uv_build>=0.13.5,<0.14.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+]

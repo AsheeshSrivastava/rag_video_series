@@ -1,0 +1,25 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv/
+
+# Secrets & environment variables
+.env
+.env.*
+
+# Third-party corpus (never committed per PRD)
+/sources/
+
+# Local workspace & tool caches
+.obsidian/
+.pytest_cache/
+.ruff_cache/
+
+# Claude Code compaction snapshots
+docs/checkpoints/
