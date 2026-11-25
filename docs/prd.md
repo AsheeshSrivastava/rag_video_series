@@ -1,3 +1,6 @@
+---
+modified: 2026-11-25T13:00:43+05:30
+---
 # Requirements: answering questions from approved sources
 
 Date: 2026-11-19. Based on [interview-notes.md](interview-notes.md). Decisions still open there are not settled here.
@@ -25,19 +28,19 @@ Frozen copies, already downloaded and listed in a manifest. Nothing is crawled.
 
 ## Requirements
 
-| ID | Requirement |
-|---|---|
-| R1 | A developer asks a question from the command line and gets an answer. |
-| R2 | Every answer cites the sources it used. |
-| R3 | If the sources don't cover a question, the system says so. It never answers from general knowledge. |
-| R4 | Every answer has one of three states: found, not found, or unavailable. |
-| R5 | Every passage the system can return keeps its citation. |
-| R6 | A list that runs across a PDF page break stays together. |
-| R7 | Ingestion records a content hash for each source file. |
-| R8 | A file whose content has changed since it was approved is not ingested. The system stops and reports that the file needs approval. |
-| R9 | Two embedding models, OpenAI `text-embedding-3-small` and a local jina model, sit behind one function. |
+| ID  | Requirement                                                                                                                                                          |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R1  | A developer asks a question from the command line and gets an answer.                                                                                                |
+| R2  | Every answer cites the sources it used.                                                                                                                              |
+| R3  | If the sources don't cover a question, the system says so. It never answers from general knowledge.                                                                  |
+| R4  | Every answer has one of three states: found, not found, or unavailable.                                                                                              |
+| R5  | Every passage the system can return keeps its citation.                                                                                                              |
+| R6  | A list that runs across a PDF page break stays together.                                                                                                             |
+| R7  | Ingestion records a content hash for each source file.                                                                                                               |
+| R8  | A file whose content has changed since it was approved is not ingested. The system stops and reports that the file needs approval.                                   |
+| R9  | Three embedding models sit behind one function: OpenAI `text-embedding-3-small`, and two local models, `jina-embeddings-v2-base-en` and `BAAI/bge-m3`.               |
 | R10 | An index is only ever built by one embedding model. Using a different model means a separate index built from scratch (see [ADR 0001](adr/0001-embedding-model.md)). |
-| R11 | Every question writes one trace line holding the question, the passages returned with their scores, the answer state, and the sources cited. |
+| R11 | Every question writes one trace line holding the question, the passages returned with their scores, the answer state, and the sources cited.                         |
 
 ## How we measure it
 
