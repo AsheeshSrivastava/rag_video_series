@@ -7,7 +7,10 @@ authors = [
     { name = "Asheesh Ranjan Srivastava", email = "asheeshsrivastava9@gmail.com" }
 ]
 requires-python = ">=3.14"
-dependencies = []
+dependencies = [
+    "numpy>=2.5.5",
+    "openai>=3.59.0",
+]
 
 [project.scripts]
 build-production-rag = "build_production_rag:main"
@@ -20,3 +23,24 @@ build-backend = "uv_build"
 dev = [
     "pytest>=9.2.0",
 ]
+embed = [
+    "numpy>=2.5.5",
+    "torch>=2.11.0",
+    "transformers>=4.50,<5",
+]
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu128", group = "embed" }
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "model: loads the real embedding models on the GPU; run on purpose with -m model",
+    "network: needs the internet; run on purpose with -m network",
+]
+addopts = "-m 'not network and not model'"
