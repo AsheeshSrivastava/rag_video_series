@@ -53,6 +53,7 @@ Notes for D5, not rules (facts 4 and 8): jina v2 uses mean pooling, then L2 norm
 | M2  | A local model's revision, and the revision of any remote code it loads, is a 40-character lowercase hexadecimal commit hash. A branch or tag name (for example `main`) is rejected with a configuration error. | unit |
 | M3  | The OpenAI model's revision is empty (null). It is never filled with a date, a guess or the API version.                                                                 | unit |
 | M4  | The function never asks OpenAI for a shortened vector. It always requests the full dimension in the registry.                                                           | unit |
+| M5  | Loading a local model fetches nothing from an unpinned revision. Every file the load fetches (weights, config, tokenizer, and every remote code module, including any file that remote code fetches itself) comes from the commit pinned in `models.toml` for its repo. Nothing resolves to `main` or another branch or tag. | model |
 
 ## 2. The embedding function
 
