@@ -19,8 +19,10 @@ from conftest import (
 TEXTS = ["alpha beta", "gamma", "delta epsilon zeta"]
 
 
-def _text_with_token_count(count_fn, target, word="hello"):
+def _text_with_token_count(count_fn, target, word="a"):
     """Smallest repeated-word text whose count_fn equals ``target`` exactly."""
+    # "a" is one token in both local tokenizers; "hello" is two in bge-m3,
+    # which makes odd counts such as 8193 unreachable.
     lo, hi = 1, target + 8
     while lo < hi:
         mid = (lo + hi) // 2
