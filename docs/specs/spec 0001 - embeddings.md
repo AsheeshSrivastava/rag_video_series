@@ -2,7 +2,7 @@
 created: 2026-11-28
 status: accepted
 description: Spec for the one embedding function (R9) and the index record (ADR 0001).
-modified: 2026-11-28T09:48:52+05:30
+modified: 2026-11-28T10:20:42+05:30
 ---
 # Spec: the embedding function and the index record
 
@@ -49,7 +49,7 @@ Notes for D5, not rules (facts 4 and 8): jina v2 uses mean pooling, then L2 norm
 
 | ID  | Rule                                                                                                                                                                     | Test |
 | --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---- |
-| M1  | The registry contains exactly the three model IDs above, and no others.                                                                                                  | unit |
+| M1  | The registry contains exactly the three model IDs above, and no others. M1 also applies when the file is loaded: `Registry.from_toml` rejects a file that doesn't hold exactly these three with a configuration error. | unit |
 | M2  | A local model's revision, and the revision of any remote code it loads, is a 40-character lowercase hexadecimal commit hash. A branch or tag name (for example `main`) is rejected with a configuration error. | unit |
 | M3  | The OpenAI model's revision is empty (null). It is never filled with a date, a guess or the API version.                                                                 | unit |
 | M4  | The function never asks OpenAI for a shortened vector. It always requests the full dimension in the registry.                                                           | unit |
@@ -71,7 +71,7 @@ There is one function for both passages and questions. It has no "document" or "
 | E5  | A text longer than the model's max input tokens fails the whole call with a configuration error that names its position and its token count. Text is never truncated. | unit, model, network |
 | E6  | Every returned vector has exactly the registry dimension for that model. If the model returns a different length, the call fails.                                  | unit, model, network |
 | E7  | Every returned vector has length 1 (L2 norm within 1e-3 of 1.0). The function normalises every vector itself, whatever the model already does.                     | unit, model, network |
-| E8  | Every value in every vector is a finite number. A NaN or infinity fails the call.                                                                                  | unit         |
+| E8  | Every value in every vector is a finite number. A NaN or infinity fails the call with a configuration error, because a retry can't fix it. | unit         |
 | E9  | The returned identity matches the model actually used: the requested model ID, the revision that was loaded (local) or null (OpenAI), and the registry dimension.  | unit, model  |
 | E10 | Results do not depend on batching. Embedding a list in one call, or one text at a time, gives vectors whose cosine similarity is at least 0.9999 for each text.     | model, network |
 | E11 | A local model embeds the same text to the same vector across two calls in one process (cosine similarity at least 0.9999).                                         | model        |
@@ -79,6 +79,10 @@ There is one function for both passages and questions. It has no "document" or "
 ### Batching
 
 The function may split a long list into smaller requests or GPU batches. That is an internal detail. Rules E1 and E10 hold whatever the split. One OpenAI request takes at most 2048 inputs and at most 300,000 tokens summed across them (fact 7), so any split must stay inside both limits.
+
+| ID  | Rule | Test |
+| --- | ---- | ---- |
+| E12 | The OpenAI backend may skip counting tokens only when the texts' total UTF-8 size is at most 300,000 bytes, because a text never has more `cl100k_base` tokens than UTF-8 bytes. Above that size it counts every text and splits the requests so that none goes over 300,000 tokens. | unit |
 
 ### Failures
 
@@ -91,7 +95,7 @@ How "embedding unavailable" maps to an answer state is D11. This spec only requi
 
 | ID  | Rule                                                                                                                                                              | Test |
 | --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
-| F1  | Each failure listed above under "configuration error" raises the configuration error type, and each listed under "embedding unavailable" raises the unavailable type. | unit |
+| F1  | Each failure listed above under "configuration error" raises the configuration error type, and each listed under "embedding unavailable" raises the unavailable type. A NaN or infinite value, a wrong number of vectors and a zero vector are configuration errors too, because none of them can succeed on a retry. | unit |
 | F2  | A missing OpenAI API key is a configuration error raised before any request is sent.                                                                              | unit |
 | F3  | A call either returns all N vectors or raises. It never returns some of them.                                                                                     | unit |
 | F4  | A transient OpenAI failure is retried at most 2 times. If it still fails, the call raises "embedding unavailable". The count is our choice; see fact 9.            | unit |
@@ -140,6 +144,7 @@ Where the record is stored, and how it sits beside the vectors, is D7. Any store
 | B3  | Every vector in an index has length equal to the record's `dimension`.                                                                                      | unit |
 | B4  | The record is written last, after every vector is stored. A build that stops early (for example on a file that needs approval, R8) leaves an index with no record. | unit |
 | B5  | An existing record is never changed. Building with a different model creates a different index, and leaves the first index's record and vectors untouched (R10). | unit |
+| B6  | Building an index from no texts raises a configuration error and writes no record, because a record for an empty index would look like a valid index. | unit |
 
 ## 4. The query check
 
@@ -240,6 +245,7 @@ A store holds one index. This is the smallest surface the rules need, not a deci
 - If a batch's identity differs from the first batch's, the build raises `ModelMismatchError` and writes no record (B2).
 - If the iterable raises (for example a file that needs approval, R8), the exception passes through and no record is written (B4).
 - The record is written once, after the last `add` (B4).
+- If `texts` yields nothing, the build raises `ConfigurationError` and writes no record (B6).
 
 `search(question, store, k, *, registry=None, backend_factory=None, embed_fn=None) -> list[tuple[str, float]]`
 
