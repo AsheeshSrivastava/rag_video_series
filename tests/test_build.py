@@ -1,4 +1,4 @@
-"""Spec 0001 section 3, "Building an index": B1 to B5."""
+"""Spec 0001 section 3, "Building an index": B1 to B6."""
 
 import json
 
@@ -145,3 +145,16 @@ def test_B5_existing_record_is_never_changed(
     assert store_a.read_record() == record_a
     np.testing.assert_array_equal(store_a.vectors(), vectors_a)
     assert not np.allclose(store_a.vectors(), store_b.vectors())
+
+
+@pytest.mark.parametrize("texts", [[], iter([])], ids=["empty-list", "empty-iterator"])
+def test_B6_building_from_no_texts_raises_and_writes_no_record(
+    emb, idx, fake_registry, texts
+):
+    store = InMemoryStore()
+    factory = FakeFactory()
+    with pytest.raises(emb.ConfigurationError):
+        idx.build_index("fake-a", texts, store, registry=fake_registry, backend_factory=factory)
+    assert store.read_record() is None
+    assert store.ops == []
+    assert factory.calls == 0

@@ -1,4 +1,4 @@
-"""Spec 0001 section 2: the embedding function (E1 to E11)."""
+"""Spec 0001 section 2: the embedding function (E1 to E12)."""
 
 import numpy as np
 import pytest
@@ -199,3 +199,37 @@ def test_E11_same_text_gives_same_vector_across_calls(embedder, cosine):
     second = embedder.embed(TEXTS).vectors
     for i in range(len(TEXTS)):
         assert cosine(first[i], second[i]) >= 0.9999
+
+
+@pytest.mark.parametrize(
+    "sizes, counted, requests",
+    [
+        ((150_000, 150_000), 0, 1),  # exactly 300,000 bytes: no counting needed
+        ((150_000, 150_001), 2, 2),  # one byte over: every text is counted, and split
+    ],
+    ids=["at-300000-bytes", "above-300000-bytes"],
+)
+def test_E12_openai_counts_tokens_above_300000_bytes(
+    emb, real_registry, mock_openai, sizes, counted, requests
+):
+    calls = []
+
+    def counter(text):
+        calls.append(text)
+        return len(text.encode())  # one token per byte: the upper bound
+
+    mock = mock_openai()
+    backend = emb.OpenAIBackend(
+        real_registry[OPENAI_ID],
+        api_key="sk-test",
+        http_client=mock.client,
+        token_counter=counter,
+    )
+    texts = ["a" * size for size in sizes]
+    vectors = backend.embed_raw(texts)
+    assert len(calls) == counted
+    assert len(mock.requests) == requests
+    # every request stays within 300,000 tokens, and all rows come back
+    for body in mock.bodies:
+        assert sum(counter(t) for t in body["input"]) <= 300_000
+    assert vectors.shape == (len(texts), 1536)
