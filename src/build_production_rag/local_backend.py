@@ -10,18 +10,33 @@ from .embeddings import EmbeddingUnavailable, ModelSpec
 
 _MEAN_POOLING = {"jinaai/jina-embeddings-v2-base-en"}  # every other local model uses CLS
 _BATCH_SIZE = 8
+# Top-level files only: a pattern without a leading "*" never matches onnx/ or coreml/.
+_SNAPSHOT_FILES = [
+    "config.json",
+    "tokenizer.json",
+    "tokenizer_config.json",
+    "special_tokens_map.json",
+    "vocab.txt",
+    "sentencepiece.bpe.model",
+    "model.safetensors",
+    "pytorch_model.bin",
+]
 
 
 class LocalBackend:
     def __init__(self, spec: ModelSpec) -> None:
         import torch
+        from huggingface_hub import snapshot_download
         from transformers import AutoModel, AutoTokenizer
 
         self._torch = torch
         self._mean = spec.id in _MEAN_POOLING
         self._device = "cuda" if torch.cuda.is_available() else "cpu"
         self.revision = spec.revision
-        self._tokenizer = AutoTokenizer.from_pretrained(spec.id, revision=spec.revision)
+        # M5: load from the pinned snapshot folder, not the repo ID. Given a repo ID,
+        # transformers and jina's remote code make their own Hub calls with no revision.
+        path = snapshot_download(spec.id, revision=spec.revision, allow_patterns=_SNAPSHOT_FILES)
+        self._tokenizer = AutoTokenizer.from_pretrained(path)
         kwargs = {}
         if spec.remote_code_revision is not None:
             kwargs = {
@@ -29,7 +44,7 @@ class LocalBackend:
                 "code_revision": spec.remote_code_revision,
             }
         self._model = (
-            AutoModel.from_pretrained(spec.id, revision=spec.revision, **kwargs)
+            AutoModel.from_pretrained(path, **kwargs)
             .to(self._device)
             .eval()
         )

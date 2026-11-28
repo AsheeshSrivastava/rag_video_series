@@ -39,6 +39,7 @@ dev = [
     { name = "pytest" },
 ]
 embed = [
+    { name = "huggingface-hub" },
     { name = "numpy" },
     { name = "torch" },
     { name = "transformers" },
@@ -54,6 +55,7 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [{ name = "pytest", specifier = ">=9.2.0" }]
 embed = [
+    { name = "huggingface-hub", specifier = ">=0.36,<1" },
     { name = "numpy", specifier = ">=2.5.5" },
     { name = "torch", specifier = ">=2.11.0", index = "https://download.pytorch.org/whl/cu128", conflict = { package = "build-production-rag", group = "embed" } },
     { name = "transformers", specifier = ">=4.50,<5" },
