@@ -1,0 +1,27 @@
+# Pinned embedding models. See docs/specs/spec 0001 - embeddings.md, section 1.
+#
+# The revisions below are each repository's `main` commit as read from
+# https://huggingface.co/api/models/<id> on 2026-11-28. They are candidates
+# until D5 pins them.
+#
+# `revision` is empty for OpenAI: it exposes no model revision (spec fact 6).
+
+[[model]]
+id = "text-embedding-3-small"
+revision = ""
+dimension = 1536
+max_input_tokens = 8192
+
+[[model]]
+id = "jinaai/jina-embeddings-v2-base-en"
+revision = "322d4d7e2f35e84137961a65af894fda0385eb7a"
+dimension = 768
+max_input_tokens = 8192
+remote_code_repo = "jinaai/jina-bert-implementation"
+remote_code_revision = "f3ec4cf7de7e561007f27c9efc7148b0bd713f81"
+
+[[model]]
+id = "BAAI/bge-m3"
+revision = "5617a9f61b028005a4858fdac845db406aefb181"
+dimension = 1024
+max_input_tokens = 8192

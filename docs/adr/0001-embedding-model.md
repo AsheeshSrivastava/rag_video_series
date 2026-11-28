@@ -1,6 +1,6 @@
 ---
 created: 2026-11-20
-modified: 2026-11-25T12:45:38+05:30
+modified: 2026-11-28T08:45:22+05:30
 status: accepted
 description:
 ---
@@ -73,7 +73,7 @@ For option B, as chosen:
 - The one embedding function from R9 is told which model to use. At query time it gets the model from the index's record.
 - An index with no record, or with a record that can't be read, can't be searched. It is treated like a mismatch.
 - Tests with a fake embedder can check three rules: an index is built by one model only, a question is embedded with the index's model, and a forced mismatch stops with an error instead of answering.
-- R11's trace line doesn't include the model name. If traces from different models have to be told apart during D4, R11 may need that field: to verify.
+- R11's trace line includes the model of the index searched, so traces from different models can be told apart during D4.
 - The three models have different vector sizes (to verify: 1536, 768 and 1024), so a wrong pairing often shows up as a size error. The record check must still be what stops it, because a size match isn't proof of the right model.
 
 Depending on the option:
