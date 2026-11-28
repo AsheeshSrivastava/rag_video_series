@@ -1,8 +1,8 @@
 ---
 created: 2026-11-28
-status: draft
+status: accepted
 description: Spec for the one embedding function (R9) and the index record (ADR 0001).
-modified: 2026-11-28T08:41:17+05:30
+modified: 2026-11-28T09:48:52+05:30
 ---
 # Spec: the embedding function and the index record
 
@@ -153,6 +153,115 @@ This is ADR 0001's "which model embeds the question", stated as rules.
 | Q4  | A model mismatch or a record error searches nothing and produces no answer. It is never reported as "not found" or as "unavailable".                                              | unit |
 | Q5  | An eval run that hits a model mismatch or a record error exits with a failure, not with a score.                                                                                  | unit |
 | Q6  | Two models with the same dimension still count as a mismatch. Test: a fake index recorded as model A, queried through a fake identity of model B with the same dimension, stops at Q3. | unit |
+
+## 5. Interface
+
+These are the names the tests import. They are not code. They say only what each name takes and gives, so the rules above can be tested. Everything not listed here is internal.
+
+### Modules
+
+| Module                          | Holds                                                                 |
+| ------------------------------- | --------------------------------------------------------------------- |
+| `build_production_rag.embeddings` | the registry, the identity, the embedding function, backends, embedding errors |
+| `build_production_rag.index`      | the index record, the store protocol, build and search, index errors  |
+
+### Registry (`embeddings`)
+
+| Name                     | What it is                                                                                                                                                                                                                       |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ModelSpec`              | One registry entry. A frozen dataclass with keyword-only fields: `id` (str), `revision` (str or `None`), `dimension` (int), `max_input_tokens` (int), `remote_code_repo` (str or `None`), `remote_code_revision` (str or `None`). An empty string in `models.toml` (`revision = ""`) becomes `None`. A missing remote-code key becomes `None`. |
+| `Registry`               | The set of `ModelSpec`, looked up by model ID. `Registry.from_toml(path)` reads a file in the `models.toml` format and applies M2 and M3 while reading. A violation raises `ConfigurationError`. `Registry(specs)` builds one directly from an iterable of `ModelSpec`, so a test can use fake models. `registry[model_id]` returns the `ModelSpec`, and raises `KeyError` for an unknown ID (`embed` turns that into `ConfigurationError`, E3). `registry.ids()` returns the IDs in file order. |
+| `load_registry()`        | `Registry.from_toml` on `models.toml` in the current working directory. Used when no registry is passed in.                                                                                                                                     |
+
+### Identity and result (`embeddings`)
+
+| Name         | What it is                                                                                                                                 |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `Identity`   | A frozen dataclass with keyword-only fields, compared by value: `model` (str), `revision` (str or `None`), `dimension` (int). The same three values as the index record. |
+| `Embeddings` | What the function returns. A frozen dataclass with keyword-only fields: `vectors`, a float32 NumPy array of shape (N, dimension), row *i* for text *i*; and `identity`, an `Identity`. For N = 0 the shape is (0, dimension). |
+
+### The embedding function (`embeddings`)
+
+`embed(model_id, texts, *, registry=None, backend_factory=None) -> Embeddings`
+
+- `model_id` is a registry ID, and `texts` is a sequence of strings.
+- `registry` defaults to `load_registry()`.
+- `backend_factory` is called with a `ModelSpec` and returns a backend. Calling it counts as "loading the model" for E2 and E3. It defaults to the real backends: OpenAI for `text-embedding-3-small`, and local for the other two.
+- Order of work: look up the model (E3), check every text (E4), call `backend_factory`, count tokens (E5), embed, then check and normalise the result (E6, E7, E8). Identity comes from the backend (E9).
+
+### Backend protocol (`embeddings`)
+
+A backend is anything with these three members. The real backends and the tests' fake all follow it.
+
+| Member               | What it does                                                                                                                         |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `revision`           | The revision actually loaded (str), or `None` for OpenAI. `embed` puts it in the identity (E9).                                      |
+| `count_tokens(text)` | The model's own token count for one text, including special tokens (fact 2). `embed` compares it with `max_input_tokens` (E5).        |
+| `embed_raw(texts)`   | Raw vectors, one row per text, before any check or normalisation. Batching happens here (fact 7). Raises `EmbeddingUnavailable` on transient failures. |
+
+`OpenAIBackend(spec, *, api_key=None, http_client=None, token_counter=None)` is the real OpenAI backend. The API key comes from the `OPENAI_API_KEY` environment variable when `api_key` is `None`. A missing or empty key raises `ConfigurationError` when the backend is created, before any request (F2). `http_client` lets a test pass an `httpx2.Client` with a mock transport (`openai` 3.59 is built on `httpx2`, not `httpx`), so F4, F5 and M4 can be tested with no network. Its retry count is 2 (F4). `token_counter` is a callable that takes one text and returns its token count, and `count_tokens` uses it. When it is `None`, the backend counts with tiktoken's `cl100k_base` (fact 2). That encoding is loaded the first time a text is counted, not when the backend is created, because tiktoken downloads it on first use. A `unit` test that goes through `count_tokens` passes a fake counter, so no `unit` test reaches the network. Only the E5 `network` case uses the real encoding.
+
+`LocalBackend(spec)` is the real local backend. It loads the model at `spec.revision`, and remote code at `spec.remote_code_revision`.
+
+### Embedding errors (`embeddings`)
+
+| Name                   | Raised for                                                                                                     |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `EmbeddingError`       | Base class of the two below.                                                                                   |
+| `ConfigurationError`   | The configuration failures in F1. It has `position` (int or `None`) and `token_count` (int or `None`) for E4 and E5. |
+| `EmbeddingUnavailable` | The unavailable failures in F1.                                                                                |
+
+### Index record (`index`)
+
+| Name                             | What it does                                                                                                     |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `IndexRecord`                    | Immutable: `record_version`, `model`, `revision`, `dimension`. `IndexRecord.from_identity(identity)` sets `record_version` to 1. |
+| `record_to_json(record) -> str`  | The JSON object from section 3.                                                                                  |
+| `record_from_json(text, registry) -> IndexRecord` | Applies X1 and X2. An unreadable record raises `IndexRecordError`.                                |
+
+### Store protocol (`index`)
+
+A store holds one index. This is the smallest surface the rules need, not a decision on D7. The tests use an in-memory fake.
+
+| Member                    | What it does                                                                     |
+| ------------------------- | -------------------------------------------------------------------------------- |
+| `add(vectors, payloads)`  | Stores vectors (N, dimension) and one payload string per vector.                 |
+| `vectors()`               | Returns every stored vector as an array.                                         |
+| `write_record(text)`      | Stores the record's JSON text.                                                   |
+| `read_record()`           | Returns the record's JSON text, or `None` if there is none.                      |
+| `search(vector, k)`       | Returns up to `k` (payload, score) pairs. Scoring is D3.                         |
+
+### Build and search (`index`)
+
+`build_index(model_id, texts, store, *, batch_size=64, registry=None, backend_factory=None, embed_fn=None) -> IndexRecord`
+
+- `texts` is any iterable of strings, embedded `batch_size` at a time through `embed`. Each text is its own payload until D10 gives the passage shape.
+- If the store already has a record, the build raises `IndexRecordError` before it embeds anything, and leaves the store unchanged (B5).
+- If a batch's identity differs from the first batch's, the build raises `ModelMismatchError` and writes no record (B2).
+- If the iterable raises (for example a file that needs approval, R8), the exception passes through and no record is written (B4).
+- The record is written once, after the last `add` (B4).
+
+`search(question, store, k, *, registry=None, backend_factory=None, embed_fn=None) -> list[tuple[str, float]]`
+
+`embed_fn` defaults to `embed` and has the same signature. A test passes a stub that returns a chosen identity. Through `embed`, the identity's model always equals the model asked for (E9), so the stub is the only way to test a different model (Q3, Q6).
+
+- It has no model argument (Q2). The order is: read the record (Q1), embed the question with the record's model, compare identities (Q3), then call `store.search`.
+- On a record error or a mismatch it raises. It never returns an empty list for these cases, because an empty list would look like "not found" (Q4).
+
+### Index errors (`index`)
+
+| Name                 | Raised for                                                                                             |
+| -------------------- | ------------------------------------------------------------------------------------------------------ |
+| `IndexRecordError`   | A missing or unreadable record (X1, X2, Q1), or a build into a store that already has a record (B5).  |
+| `ModelMismatchError` | A different identity (B2, Q3). It has `expected` and `actual` (both `Identity`). In search (Q3), `expected` is the identity in the index record and `actual` is the identity that embedded the question. In a build (B2), `expected` is the first batch's identity and `actual` is the batch that differs. Its message names both models. |
+
+### Tests
+
+- The fake embedder (T1 to T3) is a backend in `tests/`, with a factory that counts calls. It needs no network and no GPU. Its token count is the number of whitespace-separated words. Its vectors come from a hash of (model ID, revision, text), and they are not normalised, so E7's normalisation is exercised.
+- Contract tests are parametrised over embedders: the fake by default, `jina` and `bge-m3` under the `model` marker, and OpenAI under the `network` marker (T4).
+- **E5 at `network`** settles fact 2. `embed` with exactly 8192 `cl100k_base` tokens succeeds. `OpenAIBackend.embed_raw` with 8193 tokens is rejected by OpenAI. The second call goes to the backend directly, because `embed` would reject the text itself before sending it.
+- **Q3 and Q6** pass an `embed_fn` stub that returns an identity for model B, while the record says model A.
+- **Q5 is deferred** to the eval spec. No eval run exists yet. Its test is a skipped placeholder, so the rule ID still shows in the test list.
 
 ## Facts checked
 
