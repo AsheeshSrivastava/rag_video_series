@@ -1,6 +1,8 @@
-"""Spec 0001 section 1: the model registry (M1 to M4)."""
+"""Spec 0001 section 1: the model registry (M1 to M5)."""
 
 import re
+import threading
+import urllib.parse
 
 import pytest
 
@@ -87,3 +89,56 @@ def test_M4_openai_request_asks_for_full_dimension(
         # either no `dimensions` key, or exactly the registry dimension
         assert body.get("dimensions", 1536) == 1536
     assert result.vectors.shape == (2, 1536)
+
+
+@pytest.mark.model
+@pytest.mark.parametrize("model_id", [JINA_ID, BGE_ID], ids=["jina", "bge-m3"])
+def test_M5_local_load_fetches_nothing_from_an_unpinned_revision(
+    emb, real_registry, model_id, monkeypatch
+):
+    """Every Hub request made while loading names a commit pinned in models.toml.
+
+    Requests are seen through huggingface_hub's own HTTP session (requests-based
+    in huggingface_hub 0.x), so a fetch made by transformers, by remote code, or
+    by a background thread that loading starts is caught the same way. Threads
+    started during the load are joined before checking.
+    """
+    import huggingface_hub
+    import requests
+
+    from build_production_rag.local_backend import LocalBackend
+
+    monkeypatch.delenv("HF_HUB_OFFLINE", raising=False)  # offline would hide the fetches
+    spec = real_registry[model_id]
+    pins = {spec.id: spec.revision}
+    if spec.remote_code_repo is not None:
+        pins[spec.remote_code_repo] = spec.remote_code_revision
+
+    urls = []
+    lock = threading.Lock()
+
+    def session_factory():
+        session = requests.Session()
+
+        def record(response, *_args, **_kwargs):
+            with lock:
+                urls.append(urllib.parse.unquote(response.request.url))
+
+        session.hooks["response"].append(record)
+        return session
+
+    threads_before = set(threading.enumerate())
+    huggingface_hub.configure_http_backend(backend_factory=session_factory)
+    try:
+        LocalBackend(spec)
+        for thread in set(threading.enumerate()) - threads_before:
+            thread.join(timeout=120)
+    finally:
+        huggingface_hub.configure_http_backend()
+
+    def pinned(url):
+        path = urllib.parse.urlsplit(url).path
+        return any(f"/{repo}/" in path + "/" and rev in path for repo, rev in pins.items())
+
+    unpinned = [url for url in urls if not pinned(url)]
+    assert unpinned == [], "fetched from an unpinned revision:\n" + "\n".join(unpinned)
